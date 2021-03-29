@@ -1,0 +1,117 @@
+programs:
+  - name: soconnlat
+    metrics:
+      histograms:
+        - bucket_type: fixed
+          bucket_keys:
+            - 10   # 1   us
+            - 20   # 10   us
+            - 30   # 100  us
+            - 40   # 150 us
+            - 50   # 200 us
+            - 60   # 250 us
+            - 70   # 300 us
+            - 80
+            - 90
+            - 100
+          bucket_multiplier: 1e-03
+          help: Latency of Connection
+          labels:
+            - decoders:
+                - name: uint
+              name: process
+              size: 16
+          name: connection_latency
+          table: dist
+    tracepoints:
+      syscalls:sys_enter_connect: tracepoint__syscalls__sys_enter_connect
+      syscalls:sys_exit_connect: tracepoint__syscalls__sys_exit_connect
+      syscalls:sys_exit_poll: tracepoint__syscalls__sys_exit_poll
+      syscalls:sys_exit_select: tracepoint__syscalls__sys_exit_select
+      
+    
+    code: |
+      #include <uapi/linux/ptrace.h>
+      #include <linux/socket.h>
+
+      const static u64 buckets[] = {10,20,30,40,50,60,70,80,90,100};
+      const static int NUM_BUCKETS = sizeof(buckets) / sizeof(buckets[0]);
+
+      // Define the key used in the latency histogram.
+      typedef struct general {
+          u64 pid;
+          u64 bucket;
+      } general_t;
+
+      BPF_HASH(start,u64);
+
+      BPF_HISTOGRAM(dist,general_t);
+
+      static u64 get_buckets (u64 v) {
+        for(int i = 0;i < NUM_BUCKETS;i++) {
+          if (buckets[i] >= v) {
+            return buckets[i];
+          } 
+        }
+        return buckets[NUM_BUCKETS-1];
+      }
+
+      TRACEPOINT_PROBE(syscalls,sys_enter_connect) {
+        struct sockaddr * uaddr = args->uservaddr;
+        if (uaddr->sa_family == AF_INET || uaddr->sa_family == AF_INET6) {
+          u64 t_pid = bpf_get_current_pid_tgid();
+          u64 pid = t_pid >> 32;
+          u64 t_time = bpf_ktime_get_ns();
+          start.update(&pid,&t_time);
+        }
+        return 0;
+      }
+      TRACEPOINT_PROBE(syscalls,sys_exit_connect) {
+        u64 t_pid =  bpf_get_current_pid_tgid();
+        u64 pid = t_pid >> 32;
+        u64* t_old = start.lookup(&pid);
+        if ( t_old != NULL && args->ret != - EINPROGRESS) {
+          u64 t_now = bpf_ktime_get_ns();
+          u64 dur_us = (t_now - *t_old) / 1000;
+          general_t dist_key = {};
+          dist_key.pid = pid;
+          dist_key.bucket = get_buckets(dur_us);
+          dist.increment(dist_key);
+          start.delete(&pid);
+        }
+        return 0;
+      }
+
+      TRACEPOINT_PROBE (syscalls,sys_exit_poll) {
+        u64 p_pid = bpf_get_current_pid_tgid();
+        u64 pid = p_pid >> 32;
+        u64 *t_old = start.lookup(&pid);
+        if (t_old != NULL && args->ret > 0 ) {
+          u64 t_now = bpf_ktime_get_ns();
+          u64 dur_us = (t_now - *t_old) / 1000;
+          general_t key = {};
+          key.pid = pid;
+          key.bucket = get_buckets(dur_us);
+          dist.increment(key);
+          start.delete(&pid);
+        }
+        return 0;
+      }
+      TRACEPOINT_PROBE (syscalls,sys_exit_select) {
+        u64 p_pid = bpf_get_current_pid_tgid();
+        u64 pid = p_pid >> 32;
+        u64 *t_old = start.lookup(&pid);
+        if (t_old != NULL && args->ret > 0 ) {
+          u64 t_now = bpf_ktime_get_ns();
+          u64 dur_us = (t_now - *t_old) / 1000;
+          general_t key = {};
+          key.pid = pid;
+          key.bucket = get_buckets(dur_us);
+          dist.increment(key);
+          start.delete(&pid);
+        }
+        return 0;
+      }
+
+
+     

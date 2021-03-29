@@ -1,0 +1,41 @@
+programs:
+  - name: runqlen
+    metrics:
+      histograms:
+        - name: run_queue_length
+          help: Run queue length histogram
+          table: run_queue_length
+          bucket_type: linear
+          bucket_min: 0
+          bucket_max: 100
+          bucket_multiplier: 1 
+          labels:
+            - name: bucket
+              size: 528
+              decoders:
+                - name: uint
+    kprobes:
+      finish_task_switch: sched_switch
+    code: |
+      #include <linux/sched.h>
+      struct cfs_rq_partial {
+            struct load_weight load;
+            unsigned long runnable_weight;
+            unsigned int nr_running;
+      } __attribute__((packed));
+
+      BPF_HISTOGRAM(run_queue_length, u64, 102);
+
+      int sched_switch(struct task_struct * task) {
+        struct cfs_rq_partial *nr = (struct cfs_rq_partial*)task->se.cfs_rq;
+        bpf_trace_printk("%d\n",nr->nr_running);
+        
+        return 0;
+      }
+
+
+
+
+
+
+      

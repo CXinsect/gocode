@@ -1,0 +1,70 @@
+programs:
+  - name: netcode
+    metrics:
+      counters:
+        - name: netcode
+          help: The Counts Of NetCodes
+          table: counts
+          labels:
+            - name: function
+              size: 8
+              decoders:
+                - name: stringsys
+    tracepoints:
+      syscalls:sys_enter_accept4: tracepoint__syscalls__sys_enter_accept4
+      syscalls:sys_enter_connect: tracepoint__syscalls__sys_enter_connect
+      syscalls:sys_enter_bind: tracepoint__syscalls__sys_enter_bind
+      syscalls:sys_enter_socket: tracepoint__syscalls__sys_enter_socket
+    code: |
+      #include <linux/sched.h>
+
+      typedef struct general {
+        u64 key;
+      } general_t;
+      
+      BPF_HASH(counts, u64);
+      
+      // Generates function 
+      TRACEPOINT_PROBE(syscalls, sys_enter_accept4) {
+          general_t accept = {0};
+          u64 init_value = 0;
+          if(counts.lookup(&accept.key) == NULL) {
+            counts.update(&accept.key,&init_value);
+          } else {
+            counts.increment(accept.key);
+          }
+          return 0;
+      }
+       TRACEPOINT_PROBE(syscalls, sys_enter_connect) {
+          general_t connect = {1};
+          u64 init_value = 0;
+          if(counts.lookup(&connect.key) == NULL) {
+            counts.update(&connect.key,&init_value);
+          } else {
+            counts.increment(connect.key);
+          }
+          return 0;
+      }
+      TRACEPOINT_PROBE(syscalls, sys_enter_bind) {
+          general_t bind = {2};
+          u64 init_value = 0;
+          if(counts.lookup(&bind.key) == NULL) {
+            counts.update(&bind.key,&init_value);
+          } else {
+            counts.increment(bind.key);
+          }
+          return 0;
+      }
+      TRACEPOINT_PROBE(syscalls, sys_enter_socket) {
+          general_t socket = {3};
+          u64 init_value = 0;
+          if(counts.lookup(&socket.key) == NULL) {
+            counts.update(&socket.key,&init_value);
+          } else {
+            counts.increment(socket.key);
+          }
+          return 0;
+      }
+
+     
+

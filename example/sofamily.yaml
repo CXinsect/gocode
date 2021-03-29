@@ -1,0 +1,85 @@
+programs:
+  - name: sofamily
+    metrics:
+      counters:
+        - name: sofamily
+          help: the counts of different process that accept & connect had been used
+          table: sofamily_counts
+          labels:
+            - name: process
+              size: 24
+              decoders:
+                - name: uint
+    tracepoints:
+      syscalls:sys_enter_connect: tracepoint__syscalls__sys_enter_connect
+      syscalls:sys_enter_accept4: tracepoint__syscalls__sys_enter_accept4
+      syscalls:sys_exit_accept4: tracepoint__syscalls__sys_exit_accept4
+    code: |
+      #include <linux/socket.h>
+      #include <linux/sched.h>
+      typedef struct general {
+        u64 flag;
+        u64 processID;
+        u64 protocol;
+      } general_t;
+
+      BPF_HASH(accept_tmp,u64,struct sockaddr);
+      BPF_HASH(sofamily_counts,general_t);
+
+      // Generates function 
+      TRACEPOINT_PROBE(syscalls, sys_enter_connect) {
+          u64 p_t = bpf_get_current_pid_tgid();
+          u32 pid = p_t >> 32;
+          general_t connect = {};
+          connect.flag = 0;
+          connect.processID = pid;
+          struct sockaddr* dst = args->uservaddr;
+          u64 proto = (u64)dst->sa_family;
+         
+          connect.protocol = proto;
+          if (sofamily_counts.lookup(&connect) == NULL) {
+            u64 init_val = 0;
+            sofamily_counts.insert(&connect,&init_val);
+          } else {
+            sofamily_counts.increment(connect);
+          }
+          return 0;
+      }
+
+      TRACEPOINT_PROBE (syscalls,sys_enter_accept4) {
+        u64 p_t = bpf_get_current_pid_tgid();
+        u64 pid = p_t >> 32;
+        struct sockaddr dst;
+        bpf_probe_read_kernel(&dst,sizeof(struct sockaddr),args->upeer_sockaddr);
+        accept_tmp.update(&pid,&dst);
+        return 0;
+      }
+
+      TRACEPOINT_PROBE (syscalls,sys_exit_accept4) {
+        u64 p_t = bpf_get_current_pid_tgid();
+        u64 pid = p_t >> 32;
+        struct sockaddr *ret = accept_tmp.lookup(&pid);
+        if ( ret != NULL) {
+          general_t accept = {};
+          accept.flag = 1;
+          accept.processID = pid;
+          accept.protocol = (u64)ret->sa_family;
+          accept_tmp.delete(&pid);
+          
+          if (sofamily_counts.lookup(&accept) == NULL) {
+            u64 init_v = 0;
+            sofamily_counts.insert(&accept,&init_v);
+          } else {
+            if(args->ret > 0) {
+              sofamily_counts.increment(accept);
+            }
+          }
+        }
+        return 0;
+      }
+
+
+
+      
+      
+      

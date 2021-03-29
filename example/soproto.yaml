@@ -1,0 +1,42 @@
+programs:
+  - name: soproto
+    metrics:
+      counters:
+        - name: soproto
+          help: the counts of different process in protocol of level-4
+          table: soproto_counts
+          labels:
+            - name: process
+              size: 32
+              decoders:
+                - name: uint
+    kprobes:
+      security_socket_accept: do_counts
+    code: |
+      #include <net/sock.h>
+
+      typedef struct general {
+        u64 flag;
+        u64 pid;
+        u64 proto;
+        u64 pad;
+      } general_t;
+
+      BPF_HASH(soproto_counts,general_t);
+
+      int do_counts (struct pt_regs *ctx, struct sock *sk) {
+        u64 proto = (u64)(sk->sk_protocol & 0xff);
+        general_t accept = {};
+        accept.flag = 0;
+        u64 p_t = bpf_get_current_pid_tgid();
+        u64 pid = p_t >> 32;
+        accept.pid = pid;
+        accept.proto = proto;
+        if(soproto_counts.lookup(&accept) == NULL) {
+          u64 init_v = 0;
+          soproto_counts.insert(&accept,&init_v);
+        } else {
+          soproto_counts.increment(accept);
+        }
+        return 0;
+      }
