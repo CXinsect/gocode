@@ -68,3 +68,54 @@ func (e *Exporter) Attach() error {
 	}
 	return nil
 }
+
+func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
+	desc := func(programName, name, help string, label []config.Label) {
+		if _, ok := e.descs[programName][name]; !ok {
+			labelName := []string{}
+			for _, v := range label {
+				labelName = append(labelName, v.Name)
+			}
+			e.descs[programName][name] = prometheus.NewDesc(prometheus.BuildFQName(namespace, "", name),
+				help,
+				labelName,
+				nil,
+			)
+		}
+		ch <- e.descs[programName][name]
+	}
+	ch <- e.enabledProgramDesc
+	ch <- e.programInfoDesc
+
+	for _, program := range e.config.Programs {
+		if _, ok := e.descs[program.Name]; !ok {
+			e.descs[program.Name] = map[string]*prometheus.Desc{}
+		}
+		for _, counter := range program.Metrics.Counters {
+			desc(program.Name, counter.Name, counter.Help, counter.Labels)
+		}
+		for _, histogram := range program.Metrics.Histograms {
+			desc(program.Name, histogram.Name, histogram.Help, histogram.Labels)
+		}
+	}
+}
+
+func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
+	for _, programa := range e.config.Programs {
+		ch <- prometheus.MustNewConstMetric(e.enabledProgramDesc, prometheus.GaugeValue, 1, programa.Name)
+	}
+	for programa, tagMap := range e.programTags {
+		for function, _ := range tagMap {
+			ch <- prometheus.MustNewConstMetric(e.programInfoDesc, prometheus.GaugeValue, 1, programa, function)
+		}
+	}
+	//开始收集
+}
+
+func (e *Exporter) collectCounter(ch chan<- prometheus.Metric) {
+
+}
+
+func (e *Exporter) collectHistogram(ch chan<- prometheus.Metric) {
+
+}
