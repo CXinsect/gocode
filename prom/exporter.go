@@ -2,6 +2,9 @@ package prom
 
 import (
 	"fmt"
+	"log"
+	"strconv"
+	"strings"
 
 	"github.com/iovisor/gobpf/bcc"
 	"github.com/prometheus/client_golang/prometheus"
@@ -110,12 +113,104 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 		}
 	}
 	//开始收集
+	e.collectCounter(ch)
 }
 
 func (e *Exporter) collectCounter(ch chan<- prometheus.Metric) {
-
+	for _, program := range e.config.Programs {
+		for _, counter := range program.Metrics.Counters {
+			mvs, err := e.tableKeyAndValues(e.module[program.Name], counter.Table, counter.Labels)
+			if err != nil {
+				log.Printf("program named %s Table named %s Counter named %s get table values error\n", program.Name, counter.Table, counter.Name)
+				continue
+			}
+			desc := e.descs[program.Name][counter.Name]
+			for _, mv := range mvs {
+				ch <- prometheus.MustNewConstMetric(desc, prometheus.CounterValue, mv.value, mv.labels...)
+			}
+		}
+	}
 }
 
 func (e *Exporter) collectHistogram(ch chan<- prometheus.Metric) {
+	for _, program := range e.config.Programs {
+		for _, histogram := range program.Metrics.Histograms {
+			skip := false
+			mvs, err := e.tableKeyAndValues(e.module[program.Name], histogram.Table, histogram.Labels)
+			if err != nil {
+				log.Printf("program named %s Table named %s Histogram named %s get table values error\n", program.Name, histogram.Table, histogram.Name)
+				continue
+			}
+			histograms := map[string]histogramWithLabels{}
+			for _, mv := range mvs {
+				labels := mv.labels[0 : len(mv.labels)-1]
+				key := fmt.Sprintf("%#v", labels)
+				tmp_v := mv.labels[len(mv.labels)-1]
+				var str []string
+				var e_label string = "default"
+				if strings.Contains(tmp_v, ":") {
+					str = strings.Split(tmp_v, ":")
+					tmp_v = str[1]
+					e_label = str[0]
+				}
+				labels = append(labels, e_label)
+				if _, ok := histograms[key]; !ok {
+					histograms[key] = histogramWithLabels{
+						labels:  labels,
+						buckets: map[float64]uint64{},
+					}
+				}
+				leUint, err := strconv.ParseUint(tmp_v, 0, 64)
+				if err != nil {
+					log.Printf("histogram get value transform failed %s", err)
+					skip = true
+					break
+				}
+				histograms[key].buckets[float64(leUint)] = uint64(mv.value)
+			}
+			if skip {
+				continue
+			}
+			desc := e.descs[program.Name][histogram.Name]
+			for _, histogramSet := range histograms {
+				bucket, count, sum, err := transformHistogram(histogramSet.buckets, histogram)
+				if err != nil {
+					log.Printf("histogram named %s transformHistogram failed", histogram.Name)
+					continue
+				}
+				ch <- prometheus.MustNewConstHistogram(desc, count, sum, bucket, histogramSet.labels...)
+			}
 
+		}
+	}
+}
+
+type metricValue struct {
+	labels []string
+	value  float64
+}
+
+func (e *Exporter) tableKeyAndValues(module *bcc.Module, tableName string, labels []config.Label) ([]metricValue, error) {
+	values := []metricValue{}
+	table := bcc.NewTable((module.TableId(tableName)), module)
+	iter := table.Iter()
+
+	if iter != nil {
+		for iter.Next() {
+			key := iter.Key()
+			raw, _ := table.KeyBytesToStr(key)
+			fmt.Println("The content of key: ", raw)
+			mv := metricValue{
+				labels: make([]string, len(labels)),
+			}
+			var err error
+			mv.labels, err = e.decoder.DecodeLabels(key, labels)
+			if err != nil {
+				return nil, err
+			}
+			mv.value = float64(bcc.GetHostByteOrder().Uint64(iter.Leaf()))
+			values = append(values, mv)
+		}
+	}
+	return values, nil
 }
