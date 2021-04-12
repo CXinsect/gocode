@@ -45,17 +45,19 @@ func transformFixed(bucket map[float64]uint64, histogram config.Histogram) (tran
 	if err != nil {
 		return nil, 0, 0, err
 	}
-	size := histogram.BucketMax - histogram.BucketMin
+	size := len(histogram.BucketKeys)
+
 	if size == 0 {
 		return nil, 0, 0, fmt.Errorf("histogram named %s bucket size is zero", histogram.Name)
 	}
 	transformed = make(map[float64]uint64, size)
-	for i := float64(histogram.BucketMin); i < float64(histogram.BucketMax); i++ {
-		if bucket[i] != 0 {
-			count += bucket[i]
-			transformed[gFunc(i)] = count
+	for i := 0; i < size; i++ {
+		key := histogram.BucketKeys[i]
+		if bucket[key] != 0 {
+			// count += bucket[key]
+			transformed[gFunc(key)] = bucket[key]
 		} else {
-			transformed[gFunc(i)] = 0
+			transformed[gFunc(key)] = 0
 		}
 	}
 
@@ -65,7 +67,7 @@ func transformFixed(bucket map[float64]uint64, histogram config.Histogram) (tran
 		mul = 1
 	}
 
-	sum = float64(bucket[float64(histogram.BucketMax+1)]) * mul
+	sum = float64(bucket[histogram.BucketKeys[size-1]+1]) * mul
 	return
 }
 func transformDynamic(bucket map[float64]uint64, histogram config.Histogram) (transformed map[float64]uint64, count uint64, sum float64, err error) {
@@ -74,14 +76,14 @@ func transformDynamic(bucket map[float64]uint64, histogram config.Histogram) (tr
 	if err != nil {
 		return nil, 0, 0, err
 	}
-	size := len(histogram.BucketKeys)
+	size := histogram.BucketMax - histogram.BucketMin
 	if size == 0 {
 		return nil, 0, 0, fmt.Errorf("histogram named %s transformDynamic failed", histogram.Name)
 	}
 
 	transformed = make(map[float64]uint64, size)
-	for i := 0; i < size; i++ {
-		key := histogram.BucketKeys[i]
+	for i := float64(histogram.BucketMin); i < float64(histogram.BucketMax); i++ {
+		key := histogram.BucketKeys[int(i)]
 
 		if bucket[key] != 0 {
 			count += bucket[key]
@@ -95,6 +97,6 @@ func transformDynamic(bucket map[float64]uint64, histogram config.Histogram) (tr
 	if mul == 0 {
 		mul = 1
 	}
-	sum = float64(bucket[histogram.BucketKeys[size-1]+1]) * mul
+	sum = float64(bucket[float64(histogram.BucketMax+1)]) * mul
 	return
 }
