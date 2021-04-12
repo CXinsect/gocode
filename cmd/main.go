@@ -46,6 +46,6 @@ func main() {
 	err = http.ListenAndServe(*serverIP, nil)
 
 	if err != nil {
-		log.Fatalf("http server started failed")
+		log.Fatalf("http server started failed %s", err)
 	}
 }

@@ -1,0 +1,51 @@
+programs:
+  - name: runqlen
+    metrics:
+      histograms:
+        - name: runqlen
+          help: The Length Of CPU's RunQueue 
+          table: bucket
+          bucket_type: linear
+          bucket_min: 0
+          bucket_max: 20
+          bucket_mutiplier: 1
+          labels:
+            - name: bucket
+              size: 8
+              decoders:
+                - name: uint
+    perf_events:
+      - type: 0x01
+        name: 0x00
+        target: do_event
+        frequency: 99
+    code: |
+      #include <linux/sched.h>
+
+      struct cfs_rq_partial {
+        struct load_weight load;
+        unsigned long runnable_weight;
+        unsigned int nr_running;
+      };
+
+      BPF_HISTOGRAM(bucket, u64);
+
+      int do_event() {
+        struct task_struct *task = NULL;
+        struct cfs_rq_partial *my = NULL;
+        task = (struct task_struct*)bpf_get_current_task();
+        if (task != NULL) {
+          my = (struct cfs_rq_partial*)task->se.cfs_rq;
+          if (my != NULL) {
+            u64 len = (u64)my->nr_running;
+            len = len > 0 ? len-1 : 0;
+            bucket.increment(len);
+
+          }
+        }
+        return 0;
+      }  
+
+    
+     
+

@@ -67,6 +67,19 @@ func (e *Exporter) Attach() error {
 
 		e.programTags[program.Name] = tags
 
+		for _, perfEvent := range program.PerfEvents {
+			target, err := module.LoadPerfEvent(perfEvent.Target)
+			if err != nil {
+				return fmt.Errorf("perEvent targeted %s in program named %s load PerfEvent error %s", perfEvent.Target, program.Name, err)
+			}
+
+			err = module.AttachPerfEvent(perfEvent.Type, perfEvent.Name, perfEvent.Period, perfEvent.Frequency, -1, -1, -1, target)
+
+			if err != nil {
+				return fmt.Errorf("perEvent targeted %s in program named %s attach perevent error %s", perfEvent.Target, program.Name, err)
+			}
+
+		}
 		e.module[program.Name] = module
 	}
 	return nil

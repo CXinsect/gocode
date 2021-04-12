@@ -2,6 +2,7 @@ package prom
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/CXinsect/gocode/config"
 )
@@ -27,6 +28,10 @@ func generateFinallyKeyWithMultiplier(histogram config.Histogram) (generateFunc,
 		mul = 1
 	}
 	switch histogram.BucketType {
+	case config.HistogramBucketExp2:
+		return func(bucket float64) float64 {
+			return math.Exp2(bucket) * mul
+		}, nil
 	case config.HistogramBucketLinear:
 		return func(bucket float64) float64 {
 			return mul * bucket
@@ -54,7 +59,7 @@ func transformFixed(bucket map[float64]uint64, histogram config.Histogram) (tran
 	for i := 0; i < size; i++ {
 		key := histogram.BucketKeys[i]
 		if bucket[key] != 0 {
-			// count += bucket[key]
+			count += bucket[key]
 			transformed[gFunc(key)] = bucket[key]
 		} else {
 			transformed[gFunc(key)] = 0
@@ -83,13 +88,12 @@ func transformDynamic(bucket map[float64]uint64, histogram config.Histogram) (tr
 
 	transformed = make(map[float64]uint64, size)
 	for i := float64(histogram.BucketMin); i < float64(histogram.BucketMax); i++ {
-		key := histogram.BucketKeys[int(i)]
 
-		if bucket[key] != 0 {
-			count += bucket[key]
-			transformed[gFunc(key)] = count
+		if bucket[i] != 0 {
+			count += bucket[i]
+			transformed[gFunc(i)] = bucket[i]
 		} else {
-			transformed[gFunc(key)] = 0
+			transformed[gFunc(i)] = 0
 		}
 	}
 

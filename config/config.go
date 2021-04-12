@@ -4,12 +4,21 @@ type Config struct {
 	Programs []Program `yaml:"programs"`
 }
 
+type PerfEvent struct {
+	Type      int    `yaml:"type"`
+	Name      int    `yaml:"name"`
+	Target    string `yaml:"target"`
+	Period    int    `yaml:"period"`
+	Frequency int    `yaml:"frequency"`
+}
+
 type Program struct {
 	Name        string            `yaml:"name"`
 	Metrics     Metrics           `yaml:"metrics"`
 	Kprobes     map[string]string `yaml:"kprobes"`
 	Kretprobes  map[string]string `yaml:"kretprobes"`
 	Tracepoints map[string]string `yaml:"tracepoints"`
+	PerfEvents  []PerfEvent       `yaml:"perf_events"`
 	Code        string            `yaml:"code"`
 	Cflags      []string          `yaml:"cflags"`
 }
