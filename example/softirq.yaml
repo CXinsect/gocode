@@ -1,0 +1,82 @@
+programs:
+  - name: softirqs
+    metrics:
+      histograms:
+        - name: softirqs
+          help: The destribution Of soft interrupts  
+          table: dist
+          bucket_type: exp2
+          bucket_min: 0
+          bucket_max: 16
+          bucket_mutiplier: 1 # usec
+          labels:
+            - name: softirq_type
+              size: 16
+              decoders:
+                - name: uintsoftirq
+    tracepoints:
+      irq:softirq_entry: tracepoint__irq__softirq_entry
+      irq:softirq_exit: tracepoint__irq__softirq_exit            
+    code: |
+      #include <uapi/linux/ptrace.h>
+
+      const u8 bucket_max = 26;
+      typedef struct entry_key {
+        u32 pid;
+        u32 cpu;
+      } entry_key_t;
+
+      typedef struct irq_key {
+        u64 vec;
+        u64 slot;
+      } irq_key_t;
+
+      typedef struct account_val {
+        u64 vec;
+        u64 ts;
+      }account_val_t;
+
+      BPF_HASH(start,entry_key_t,account_val_t);
+      BPF_HASH(iptr, u32);
+      BPF_HISTOGRAM(dist, irq_key_t,bucket_max + 2);
+
+      TRACEPOINT_PROBE(irq, softirq_entry) {
+        account_val_t val = {};
+        entry_key_t key = {};
+        u64 p_pid = bpf_get_current_pid_tgid();
+        key.pid = p_pid >> 32;
+        key.cpu = bpf_get_smp_processor_id();
+        val.ts = bpf_ktime_get_ns();
+        val.vec = args->vec;
+        start.update(&key,&val);
+        return 0;
+      }
+
+      TRACEPOINT_PROBE(irq, softirq_exit) {
+        account_val_t *pval = NULL;
+        entry_key_t key = {};
+        key.pid = bpf_get_current_pid_tgid();
+        key.cpu =  bpf_get_smp_processor_id();
+        pval = start.lookup(&key);
+        if ( pval == NULL ) {
+          return 0;
+        }
+        irq_key_t irq_key = {};
+      
+        u64 delta = (bpf_ktime_get_ns() - pval->ts) / 1000;
+        u64 delta_slot = bpf_log2l(delta);
+       
+        if (delta_slot > bucket_max) {
+          delta_slot = bucket_max;
+        }
+        irq_key.vec = pval->vec;
+        irq_key.slot = delta_slot;
+        dist.increment(irq_key);
+        start.delete(&key);
+        return 0;
+      }
+
+
+     
+     
+

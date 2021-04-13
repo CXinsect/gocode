@@ -1,9 +1,9 @@
 programs:
-  - name: netcode
+  - name: networking_function
     metrics:
       counters:
-        - name: netcode
-          help: The Counts Of NetCodes
+        - name: networking_function_using
+          help: The Counters Of NetWorking fuctions
           table: counts
           labels:
             - name: function

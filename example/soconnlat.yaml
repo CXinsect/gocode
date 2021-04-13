@@ -40,12 +40,14 @@ programs:
       const static int NUM_BUCKETS = sizeof(buckets) / sizeof(buckets[0]);
 
       // Define the key used in the latency histogram.
+      //define 0 represent soconnlat
       typedef struct general {
-          u64 pid;
+          u32 flag;
+          u32 pid;
           u64 bucket;
       } general_t;
 
-      BPF_HASH(start,u64);
+      BPF_HASH(start,u32);
 
       BPF_HISTOGRAM(dist,general_t);
 
@@ -62,7 +64,7 @@ programs:
         struct sockaddr * uaddr = args->uservaddr;
         if (uaddr->sa_family == AF_INET || uaddr->sa_family == AF_INET6) {
           u64 t_pid = bpf_get_current_pid_tgid();
-          u64 pid = t_pid >> 32;
+          u32 pid = t_pid >> 32;
           u64 t_time = bpf_ktime_get_ns();
           start.update(&pid,&t_time);
         }
@@ -70,12 +72,13 @@ programs:
       }
       TRACEPOINT_PROBE(syscalls,sys_exit_connect) {
         u64 t_pid =  bpf_get_current_pid_tgid();
-        u64 pid = t_pid >> 32;
+        u32 pid = t_pid >> 32;
         u64* t_old = start.lookup(&pid);
         if ( t_old != NULL && args->ret != - EINPROGRESS) {
           u64 t_now = bpf_ktime_get_ns();
           u64 dur_us = (t_now - *t_old) / 1000;
           general_t dist_key = {};
+          dist_key.flag = 0;
           dist_key.pid = pid;
           dist_key.bucket = get_buckets(dur_us);
           dist.increment(dist_key);
@@ -86,12 +89,13 @@ programs:
 
       TRACEPOINT_PROBE (syscalls,sys_exit_poll) {
         u64 p_pid = bpf_get_current_pid_tgid();
-        u64 pid = p_pid >> 32;
+        u32 pid = p_pid >> 32;
         u64 *t_old = start.lookup(&pid);
         if (t_old != NULL && args->ret > 0 ) {
           u64 t_now = bpf_ktime_get_ns();
           u64 dur_us = (t_now - *t_old) / 1000;
           general_t key = {};
+          key.flag = 0;
           key.pid = pid;
           key.bucket = get_buckets(dur_us);
           dist.increment(key);
@@ -101,12 +105,13 @@ programs:
       }
       TRACEPOINT_PROBE (syscalls,sys_exit_select) {
         u64 p_pid = bpf_get_current_pid_tgid();
-        u64 pid = p_pid >> 32;
+        u32 pid = p_pid >> 32;
         u64 *t_old = start.lookup(&pid);
         if (t_old != NULL && args->ret > 0 ) {
           u64 t_now = bpf_ktime_get_ns();
           u64 dur_us = (t_now - *t_old) / 1000;
           general_t key = {};
+          key.flag = 0;
           key.pid = pid;
           key.bucket = get_buckets(dur_us);
           dist.increment(key);

@@ -22,8 +22,9 @@ type Set struct {
 func NewSet() *Set {
 	return &Set{
 		decoders: map[string]Decoder{
-			"uint":      &UInt{},
-			"stringsys": &StringSys{},
+			"uint":        &UInt{},
+			"stringsys":   &StringSys{},
+			"uintsoftirq": &UIntSoftIrq{},
 		},
 	}
 }

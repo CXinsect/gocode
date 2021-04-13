@@ -16,6 +16,7 @@ func transformHistogram(buckets map[float64]uint64, histogram config.Histogram) 
 	if histogram.BucketType == config.HistogramBucketFixed {
 		return transformFixed(buckets, histogram)
 	} else {
+
 		return transformDynamic(buckets, histogram)
 	}
 }
@@ -58,12 +59,10 @@ func transformFixed(bucket map[float64]uint64, histogram config.Histogram) (tran
 	transformed = make(map[float64]uint64, size)
 	for i := 0; i < size; i++ {
 		key := histogram.BucketKeys[i]
-		if bucket[key] != 0 {
-			count += bucket[key]
-			transformed[gFunc(key)] = bucket[key]
-		} else {
-			transformed[gFunc(key)] = 0
-		}
+
+		count += bucket[key]
+		transformed[gFunc(key)] = bucket[key]
+
 	}
 
 	mul := histogram.BucketMultiplier
@@ -75,6 +74,7 @@ func transformFixed(bucket map[float64]uint64, histogram config.Histogram) (tran
 	sum = float64(bucket[histogram.BucketKeys[size-1]+1]) * mul
 	return
 }
+
 func transformDynamic(bucket map[float64]uint64, histogram config.Histogram) (transformed map[float64]uint64, count uint64, sum float64, err error) {
 	gFunc, err := generateFinallyKeyWithMultiplier(histogram)
 
@@ -89,18 +89,15 @@ func transformDynamic(bucket map[float64]uint64, histogram config.Histogram) (tr
 	transformed = make(map[float64]uint64, size)
 	for i := float64(histogram.BucketMin); i < float64(histogram.BucketMax); i++ {
 
-		if bucket[i] != 0 {
-			count += bucket[i]
-			transformed[gFunc(i)] = bucket[i]
-		} else {
-			transformed[gFunc(i)] = 0
-		}
+		count += bucket[i]
+		transformed[gFunc(i)] = bucket[i]
+
 	}
 
 	mul := histogram.BucketMultiplier
 	if mul == 0 {
 		mul = 1
 	}
-	sum = float64(bucket[float64(histogram.BucketMax+1)]) * mul
+	sum = float64(bucket[float64(histogram.BucketMax)]) * mul
 	return
 }

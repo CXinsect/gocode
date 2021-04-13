@@ -158,7 +158,6 @@ func (e *Exporter) collectHistogram(ch chan<- prometheus.Metric) {
 			histograms := map[string]histogramWithLabels{}
 			for _, mv := range mvs {
 				labels := mv.labels[0 : len(mv.labels)-1]
-				key := fmt.Sprintf("%#v", labels)
 				tmp_v := mv.labels[len(mv.labels)-1]
 				var str []string
 				var e_label string = "default"
@@ -168,6 +167,7 @@ func (e *Exporter) collectHistogram(ch chan<- prometheus.Metric) {
 					e_label = str[0]
 				}
 				labels = append(labels, e_label)
+				key := labels[0]
 				if _, ok := histograms[key]; !ok {
 					histograms[key] = histogramWithLabels{
 						labels:  labels,

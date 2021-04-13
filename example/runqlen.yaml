@@ -4,13 +4,13 @@ programs:
       histograms:
         - name: runqlen
           help: The Length Of CPU's RunQueue 
-          table: bucket
+          table: dist
           bucket_type: linear
           bucket_min: 0
-          bucket_max: 20
+          bucket_max: 10
           bucket_mutiplier: 1
           labels:
-            - name: bucket
+            - name: runqlen
               size: 8
               decoders:
                 - name: uint
@@ -21,6 +21,7 @@ programs:
         frequency: 99
     code: |
       #include <linux/sched.h>
+      const u8 bucket_max = 10;
 
       struct cfs_rq_partial {
         struct load_weight load;
@@ -28,7 +29,7 @@ programs:
         unsigned int nr_running;
       };
 
-      BPF_HISTOGRAM(bucket, u64);
+      BPF_HISTOGRAM(dist, u64, bucket_max + 2);
 
       int do_event() {
         struct task_struct *task = NULL;
@@ -39,8 +40,10 @@ programs:
           if (my != NULL) {
             u64 len = (u64)my->nr_running;
             len = len > 0 ? len-1 : 0;
-            bucket.increment(len);
-
+            if (len > bucket_max) {
+              len = bucket_max;
+            }
+            dist.increment(len);
           }
         }
         return 0;
