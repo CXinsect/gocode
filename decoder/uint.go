@@ -31,7 +31,7 @@ func (u *UInt) Decode(in []byte, conf config.Decoder) ([]byte, error) {
 		return generateLabelsOfKey_24(flag, front, back)
 	case 16:
 		front := byteOrder.Uint64(in[0:8])
-		back := byteOrder.Uint64(in[8:])
+		back := byteOrder.Uint64(in[8:16])
 		return []byte(string(strconv.Itoa(int(front))) + ":" + string(strconv.Itoa(int(back)))), nil
 	case 8:
 		result = byteOrder.Uint64(in)

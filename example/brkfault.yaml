@@ -1,0 +1,43 @@
+programs:
+  - name: Brk_Page_Fault
+    metrics:
+      counters:
+        - name: brk_page_fault
+          help: The Counters Of Process's memory assignment function
+          table: memory
+          labels:
+            - name: process
+              size: 16
+              decoders:
+                - name: uintmem
+    kprobes:
+      handle_mm_fault: kprobe_handle_mm_fault
+    tracepoints:
+      syscalls:sys_enter_brk: tracepoint__syscalls__sys_enter_brk
+    code: |
+      #include <linux/sched.h>
+
+      typedef struct memory_assignment {
+        u64 flag;
+        u64 pid;
+      }memory_assignment_t;
+
+      BPF_HASH(memory, memory_assignment_t);
+
+      void kprobe_handle_mm_fault(struct pt_regs *ctx) {
+        memory_assignment_t mem = {};
+        mem.flag = 0;
+        mem.pid = bpf_get_current_pid_tgid() >> 32;
+        memory.increment(mem);
+      }
+
+      TRACEPOINT_PROBE(syscalls, sys_enter_brk) {
+        memory_assignment_t mem;
+        mem.flag = 1;
+        mem.pid = bpf_get_current_pid_tgid() >> 32;
+        memory.increment(mem);
+        return 0;
+      }
+
+      
+     

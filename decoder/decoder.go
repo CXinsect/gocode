@@ -25,6 +25,7 @@ func NewSet() *Set {
 			"uint":        &UInt{},
 			"stringsys":   &StringSys{},
 			"uintsoftirq": &UIntSoftIrq{},
+			"uintmem":     &UIntMem{},
 		},
 	}
 }

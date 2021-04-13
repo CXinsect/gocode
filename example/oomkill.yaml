@@ -1,0 +1,34 @@
+programs:
+  - name: OOMKill
+    metrics:
+      counters:
+        - name: oomkill
+          help: The Counters Of System's OOMKill
+          table: oom_collect
+          labels:
+            - name: oomkill
+              size: 16
+              decoders:
+                - name: uint
+    kprobes:
+      oom_kill_process: kprobe_oom_kill_process
+    code: |
+      #include <uapi/linux/ptrace.h>
+      #include <linux/oom.h>
+
+      typedef struct oom_type {
+        u64 pid;
+        u64 pages;
+      } oom_type_t;
+
+      BPF_HASH(oom_collect, oom_type_t);
+
+      void kprobe_oom_kill_process(struct pt_regs *ctx, struct oom_control *oc) {
+        oom_type_t oom = {};
+        oom.pid = bpf_get_current_pid_tgid() >> 32;
+        oom.pages = oc->totalpages;
+        oom_collect.increment(oom);
+      }
+
+      
+     
