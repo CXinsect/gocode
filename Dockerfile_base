@@ -1,0 +1,30 @@
+FROM centos:centos7.6.1810
+
+RUN yum update -y &&  yum install -y wget && \
+	wget -O /etc/yum.repos.d/CentOS-Base.repo http://mirrors.aliyun.com/repo/Centos-7.repo && \
+	wget https://golang.google.cn/dl/go1.16.3.linux-amd64.tar.gz && \
+	tar -C /usr/local/ -xzf go1.16.3.linux-amd64.tar.gz && \
+	yum update && yum install -y ca-certificates bcc-tools gcc git curl
+
+RUN yum install -y epel-release && \
+	yum update -y && yum groupinstall -y "Development tools" && \
+	yum install -y elfutils-libelf-devel cmake3 git bison flex ncurses-devel luajit luajit-devel
+
+RUN	export https_proxy=http://192.168.30.148:7890 &&\
+	curl  -LO  http://releases.llvm.org/7.0.1/llvm-7.0.1.src.tar.xz && \
+	curl  -LO  http://releases.llvm.org/7.0.1/cfe-7.0.1.src.tar.xz && \
+	unset https_proxy && \
+	tar -xf cfe-7.0.1.src.tar.xz && tar -xf llvm-7.0.1.src.tar.xz && \
+	mkdir clang-build llvm-build && \
+	cd llvm-build && cmake3 -G "Unix Makefiles" -DLLVM_TARGETS_TO_BUILD="BPF;X86" \
+  				-DCMAKE_BUILD_TYPE=Release ../llvm-7.0.1.src && \
+	make && make install && \
+	cd ../clang-build && cmake3 -G "Unix Makefiles" -DLLVM_TARGETS_TO_BUILD="BPF;X86" \
+  				-DCMAKE_BUILD_TYPE=Release ../cfe-7.0.1.src && \
+	make && make install
+
+RUN export https_proxy=http://192.168.30.148:7890 && \
+    git clone https://github.com/iovisor/bcc.git && \
+    mkdir bcc/build && cd bcc/build && \
+    cmake3 .. && make && make install && \
+    unset https_proxy
