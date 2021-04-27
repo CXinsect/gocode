@@ -2,7 +2,8 @@
 
 image: 
 	docker build -t cxinsect/prom:v0.0.0 -f Dockerfile .
-clean:
+	docker push cxinsect/prom:v0.0.0
+clean: 
 	docker rmi -f cxinsect/prom:v0.0.0 
 
 image_base:

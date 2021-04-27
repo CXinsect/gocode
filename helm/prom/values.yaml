@@ -1,0 +1,9 @@
+image:
+  repository: cxinsect/prom
+  tag: v0.0.0
+  pullPolicy: IfNotPresent
+
+service:
+  type: NodePort
+  port: 8888
+  
