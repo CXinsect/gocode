@@ -1,0 +1,16 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ .Release.Name }}-serviceMonitor
+  namespace: {{ .Release.Namespace }}
+  labels:
+    team: frontend
+spec:
+  namespaceSelector:
+    matchNames:
+    - default
+  selector:
+    matchLabels:
+      instance: prom-service
+  endpoints:
+  - port: metrics

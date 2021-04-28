@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: DaemonSet
 metadata: 
-  name: {{ .Release.Name }}-daemonset
+  name: {{ .Release.Name }}-Daemonset
   namespace: {{ .Release.Namespace }}
 spec:
   selector:
@@ -34,7 +34,7 @@ spec:
         - configMap:
             defaultMode: 420
             name: prom-exporter
-          name: config-volume
+          name: {{ .Release.Name }}-ConfigMap
         - hostPath:
             path: /sys/kernel/debug
             type: Directory
