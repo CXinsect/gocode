@@ -6,4 +6,13 @@ image:
 service:
   type: NodePort
   port: 8888
-  
+
+resources:
+  limits:
+    cpu: 100m
+    memory: 128Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+configMapFile: {}

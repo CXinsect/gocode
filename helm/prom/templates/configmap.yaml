@@ -1,0 +1,200 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+data:
+  prom-exporter.yaml: |
+  {{- with .Values }}
+  {{- if empty .configMapFile }}
+    programs:
+    - name: Brk_Page_Fault
+      metrics:
+        counters:
+        - name: brk_page_fault
+          help: The Counters Of Process's memory assignment function
+          table: memory
+          labels:
+          - name: process
+            size: 16
+            decoders:
+            - name: uintmem
+      kprobes:
+        handle_mm_fault: kprobe_handle_mm_fault
+      tracepoints:
+        syscalls:sys_enter_brk: tracepoint__syscalls__sys_enter_brk
+      code: |
+        #include <linux/sched.h>
+
+        typedef struct memory_assignment {
+          u64 flag;
+          u64 pid;
+        }memory_assignment_t;
+
+        BPF_HASH(memory, memory_assignment_t);
+
+        void kprobe_handle_mm_fault(struct pt_regs *ctx) {
+          memory_assignment_t mem = {};
+          mem.flag = 0;
+          mem.pid = bpf_get_current_pid_tgid() >> 32;
+          memory.increment(mem);
+        }
+
+        TRACEPOINT_PROBE(syscalls, sys_enter_brk) {
+          memory_assignment_t mem;
+          mem.flag = 1;
+          mem.pid = bpf_get_current_pid_tgid() >> 32;
+          memory.increment(mem);
+          return 0;
+        }
+    - name: networking_function
+      metrics:
+        counters:
+        - name: networking_function_using
+          help: The Counters Of NetWorking fuctions
+          table: counts
+          labels:
+          - name: function
+            size: 8
+            decoders:
+            - name: stringsys
+      tracepoints:
+        syscalls:sys_enter_accept4: tracepoint__syscalls__sys_enter_accept4
+        syscalls:sys_enter_connect: tracepoint__syscalls__sys_enter_connect
+        syscalls:sys_enter_bind: tracepoint__syscalls__sys_enter_bind
+        syscalls:sys_enter_socket: tracepoint__syscalls__sys_enter_socket
+      code: |
+        #include <linux/sched.h>
+
+        typedef struct general {
+          u64 key;
+        } general_t;
+        
+        BPF_HASH(counts, u64);
+        
+        // Generates function 
+        TRACEPOINT_PROBE(syscalls, sys_enter_accept4) {
+            general_t accept = {0};
+            u64 init_value = 0;
+            if(counts.lookup(&accept.key) == NULL) {
+              counts.update(&accept.key,&init_value);
+            } else {
+              counts.increment(accept.key);
+            }
+            return 0;
+        }
+        TRACEPOINT_PROBE(syscalls, sys_enter_connect) {
+            general_t connect = {1};
+            u64 init_value = 0;
+            if(counts.lookup(&connect.key) == NULL) {
+              counts.update(&connect.key,&init_value);
+            } else {
+              counts.increment(connect.key);
+            }
+            return 0;
+        }
+        TRACEPOINT_PROBE(syscalls, sys_enter_bind) {
+            general_t bind = {2};
+            u64 init_value = 0;
+            if(counts.lookup(&bind.key) == NULL) {
+              counts.update(&bind.key,&init_value);
+            } else {
+              counts.increment(bind.key);
+            }
+            return 0;
+        }
+        TRACEPOINT_PROBE(syscalls, sys_enter_socket) {
+            general_t socket = {3};
+            u64 init_value = 0;
+            if(counts.lookup(&socket.key) == NULL) {
+              counts.update(&socket.key,&init_value);
+            } else {
+              counts.increment(socket.key);
+            }
+            return 0;
+        }
+    - name: OOMKill
+      metrics:
+        counters:
+        - name: oomkill
+          help: The Counters Of System's OOMKill
+          table: oom_collect
+          labels:
+          - name: oomkill
+            size: 16
+            decoders:
+            - name: uint
+      kprobes:
+        oom_kill_process: kprobe_oom_kill_process
+      code: |
+        #include <uapi/linux/ptrace.h>
+        #include <linux/oom.h>
+
+        typedef struct oom_type {
+          u64 pid;
+          u64 pages;
+        } oom_type_t;
+
+        BPF_HASH(oom_collect, oom_type_t);
+
+        void kprobe_oom_kill_process(struct pt_regs *ctx, struct oom_control *oc) {
+          oom_type_t oom = {};
+          oom.pid = bpf_get_current_pid_tgid() >> 32;
+          oom.pages = oc->totalpages;
+          oom_collect.increment(oom);
+        }
+    - name: runqlen
+      metrics:
+        histograms:
+        - name: runqlen
+          help: The Length Of CPU's RunQueue 
+          table: dist
+          bucket_type: linear
+          bucket_min: 0
+          bucket_max: 10
+          bucket_mutiplier: 1
+          labels:
+          - name: runqlen
+            size: 8
+            decoders:
+            - name: uint
+      perf_events:
+      - type: 0x01
+        name: 0x00
+        target: do_event
+        frequency: 99
+      code: |
+        #include <linux/sched.h>
+        const u8 bucket_max = 10;
+
+        struct cfs_rq_partial {
+          struct load_weight load;
+          unsigned long runnable_weight;
+          unsigned int nr_running;
+        };
+
+        BPF_HISTOGRAM(dist, u64, bucket_max + 2);
+
+        int do_event() {
+          struct task_struct *task = NULL;
+          struct cfs_rq_partial *my = NULL;
+          task = (struct task_struct*)bpf_get_current_task();
+          if (task != NULL) {
+            my = (struct cfs_rq_partial*)task->se.cfs_rq;
+            if (my != NULL) {
+              u64 len = (u64)my->nr_running;
+              len = len > 0 ? len-1 : 0;
+              if (len > bucket_max) {
+                len = bucket_max;
+              }
+              dist.increment(len);
+            }
+          }
+          return 0;
+        }  
+        
+  {{- else }}
+{{- toYaml .configMapFile | indent 4 }}
+  {{- end }}
+  {{- end }}
+

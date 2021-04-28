@@ -1,19 +1,47 @@
-apiVersion: extensions/v1beta1
-kind: Daemonset
+apiVersion: apps/v1
+kind: DaemonSet
 metadata: 
   name: {{ .Release.Name }}-daemonset
   namespace: {{ .Release.Namespace }}
 spec:
   selector:
     matchLabels:
-      app: {{ .Release.Name }}
+      instance: {{ .Release.Name }}
   template:
     metadata:
       labels:
-        app: {{ .Release.Name }}
+        instance: {{ .Release.Name }}
     spec:
       containers:
       - name: {{ .Release.Name }}
-        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
+        securityContext:
+          privileged: true
+        ports:
+        - name: metrics
+          containerPort: 8888
+          protocol: TCP
+        volumeMounts:
+        - mountPath: /etc/config
+          name: config-volume
+        - mountPath: /sys/kernel/debug
+          name: kernel
+        - mountPath: /lib/modules/
+          name: modules
+      restartPolicy: Always
+      volumes:
+        - configMap:
+            defaultMode: 420
+            name: prom-exporter
+          name: config-volume
+        - hostPath:
+            path: /sys/kernel/debug
+            type: Directory
+          name: kernel
+        - hostPath:
+            path: /lib/modules
+            type: Directory
+          name: modules
+
       
