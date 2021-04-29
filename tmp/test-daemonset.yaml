@@ -1,23 +1,24 @@
 apiVersion: apps/v1
-kind: DaemonSet
+kind: Deployment
 metadata: 
-  name: {{ .Release.Name }}-daemonset
-  namespace: {{ .Release.Namespace }}
+  name: test-daemonset
+  namespace: default
 spec:
+  replicas: 1
   selector:
     matchLabels:
-      instance: {{ .Release.Name }}
+      instance: test-daemonset
   template:
     metadata:
       labels:
-        instance: {{ .Release.Name }}
+        instance: test-daemonset
     spec:
       containers:
-      - name: {{ .Release.Name }}
-        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
-        imagePullPolicy: {{ .Values.image.pullPolicy }}
-        command: ["/bin/bash","-c"]
-        args: ["--config.file","/etc/config/prom-exporter.yaml"]
+      - name: test
+        image: cxinsect/prom:v0.0.0
+        imagePullPolicy: IfNotPresent
+        command: ["/bin/bash"]
+        args: ["-c","./prom_exporter --config.file /etc/config/prom-exporter.yaml"]
         securityContext:
           privileged: true
         ports:
@@ -26,17 +27,19 @@ spec:
           protocol: TCP
         volumeMounts:
         - mountPath: /etc/config
-          name: {{ .Release.Name }}-configmap
+          name: test-configmap
         - mountPath: /sys/kernel/debug
           name: kernel
         - mountPath: /lib/modules/
           name: modules
+        - mountPath: /usr/src/kernels
+          name: users
       restartPolicy: Always
       volumes:
         - configMap:
             defaultMode: 420
-            name: prom-exporter
-          name: {{ .Release.Name }}-configmap
+            name: test-configmap
+          name: test-configmap
         - hostPath:
             path: /sys/kernel/debug
             type: Directory
@@ -45,5 +48,9 @@ spec:
             path: /lib/modules
             type: Directory
           name: modules
+        - hostPath:
+            path: /usr/src/kernels
+            type: Directory
+          name: users
 
       

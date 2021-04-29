@@ -1,12 +1,10 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ .Release.Name }}-configmap
-  namespace: {{ .Release.Namespace }}
+  name: test-configmap
+  namespace: default
 data:
   prom-exporter.yaml: |
-  {{- with .Values }}
-  {{- if empty .configMapFile }}
     programs:
     - name: Brk_Page_Fault
       metrics:
@@ -505,9 +503,4 @@ data:
           }
           return 0;
         }
-
-  {{- else }}
-{{- toYaml .configMapFile | indent 4 }}
-  {{- end }}
-  {{- end }}
 

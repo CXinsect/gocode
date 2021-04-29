@@ -1,7 +1,7 @@
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: {{ .Release.Name }}-serviceMonitor
+  name: {{ .Release.Name }}-servicemonitor
   namespace: {{ .Release.Namespace }}
   labels:
     team: frontend
