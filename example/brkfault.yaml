@@ -38,6 +38,461 @@ programs:
         memory.increment(mem);
         return 0;
       }
+  - name: networking_function
+    metrics:
+      counters:
+      - name: networking_function_using
+        help: The Counters Of NetWorking fuctions
+        table: counts
+        labels:
+        - name: function
+          size: 8
+          decoders:
+          - name: stringsys
+    tracepoints:
+      syscalls:sys_enter_accept4: tracepoint__syscalls__sys_enter_accept4
+      syscalls:sys_enter_connect: tracepoint__syscalls__sys_enter_connect
+      syscalls:sys_enter_bind: tracepoint__syscalls__sys_enter_bind
+      syscalls:sys_enter_socket: tracepoint__syscalls__sys_enter_socket
+    code: |
+      #include <linux/sched.h>
 
+      typedef struct general {
+        u64 key;
+      } general_t;
       
-     
+      BPF_HASH(counts, u64);
+      
+      // Generates function 
+      TRACEPOINT_PROBE(syscalls, sys_enter_accept4) {
+          general_t accept = {0};
+          u64 init_value = 0;
+          if(counts.lookup(&accept.key) == NULL) {
+            counts.update(&accept.key,&init_value);
+          } else {
+            counts.increment(accept.key);
+          }
+          return 0;
+      }
+      TRACEPOINT_PROBE(syscalls, sys_enter_connect) {
+          general_t connect = {1};
+          u64 init_value = 0;
+          if(counts.lookup(&connect.key) == NULL) {
+            counts.update(&connect.key,&init_value);
+          } else {
+            counts.increment(connect.key);
+          }
+          return 0;
+      }
+      TRACEPOINT_PROBE(syscalls, sys_enter_bind) {
+          general_t bind = {2};
+          u64 init_value = 0;
+          if(counts.lookup(&bind.key) == NULL) {
+            counts.update(&bind.key,&init_value);
+          } else {
+            counts.increment(bind.key);
+          }
+          return 0;
+      }
+      TRACEPOINT_PROBE(syscalls, sys_enter_socket) {
+          general_t socket = {3};
+          u64 init_value = 0;
+          if(counts.lookup(&socket.key) == NULL) {
+            counts.update(&socket.key,&init_value);
+          } else {
+            counts.increment(socket.key);
+          }
+          return 0;
+      }
+  - name: OOMKill
+    metrics:
+      counters:
+      - name: oomkill
+        help: The Counters Of System's OOMKill
+        table: oom_collect
+        labels:
+        - name: oomkill
+          size: 16
+          decoders:
+          - name: uint
+    kprobes:
+      oom_kill_process: kprobe_oom_kill_process
+    code: |
+      #include <uapi/linux/ptrace.h>
+      #include <linux/oom.h>
+
+      typedef struct oom_type {
+        u64 pid;
+        u64 pages;
+      } oom_type_t;
+
+      BPF_HASH(oom_collect, oom_type_t);
+
+      void kprobe_oom_kill_process(struct pt_regs *ctx, struct oom_control *oc) {
+        oom_type_t oom = {};
+        oom.pid = bpf_get_current_pid_tgid() >> 32;
+        oom.pages = oc->totalpages;
+        oom_collect.increment(oom);
+      }
+  - name: runqlen
+    metrics:
+      histograms:
+      - name: runqlen
+        help: The Length Of CPU's RunQueue 
+        table: dist
+        bucket_type: linear
+        bucket_min: 0
+        bucket_max: 10
+        bucket_mutiplier: 1
+        labels:
+        - name: runqlen
+          size: 8
+          decoders:
+          - name: uint
+    perf_events:
+    - type: 0x01
+      name: 0x00
+      target: do_event
+      frequency: 99
+    code: |
+      #include <linux/sched.h>
+      const u8 bucket_max = 10;
+
+      struct cfs_rq_partial {
+        struct load_weight load;
+        unsigned long runnable_weight;
+        unsigned int nr_running;
+      };
+
+      BPF_HISTOGRAM(dist, u64, bucket_max + 2);
+
+      int do_event() {
+        struct task_struct *task = NULL;
+        struct cfs_rq_partial *my = NULL;
+        task = (struct task_struct*)bpf_get_current_task();
+        if (task != NULL) {
+          my = (struct cfs_rq_partial*)task->se.cfs_rq;
+          if (my != NULL) {
+            u64 len = (u64)my->nr_running;
+            len = len > 0 ? len-1 : 0;
+            if (len > bucket_max) {
+              len = bucket_max;
+            }
+            dist.increment(len);
+          }
+        }
+        return 0;
+      }  
+  - name: soconnlat
+    metrics:
+      histograms:
+      - bucket_type: fixed
+        bucket_keys:
+        - 10   # 10   us
+        - 20   
+        - 30   
+        - 40   
+        - 50   
+        - 60   
+        - 70   
+        - 80
+        - 90
+        - 100
+        bucket_min: 0
+        bucket_max: 10
+        bucket_multiplier: 1e-03
+        help: Latency of Connection
+        labels:
+        - decoders:
+          - name: uint
+          name: process
+          size: 16
+        name: connection_latency
+        table: dist
+    tracepoints:
+      syscalls:sys_enter_connect: tracepoint__syscalls__sys_enter_connect
+      syscalls:sys_exit_connect: tracepoint__syscalls__sys_exit_connect
+      syscalls:sys_exit_poll: tracepoint__syscalls__sys_exit_poll
+      syscalls:sys_exit_select: tracepoint__syscalls__sys_exit_select
+    code: |
+      #include <uapi/linux/ptrace.h>
+      #include <linux/socket.h>
+
+      const static u64 buckets[] = {10,20,30,40,50,60,70,80,90,100};
+      const static int NUM_BUCKETS = sizeof(buckets) / sizeof(buckets[0]);
+
+      // Define the key used in the latency histogram.
+      //define 0 represent soconnlat
+      typedef struct general {
+          u32 flag;
+          u32 pid;
+          u64 bucket;
+      } general_t;
+
+      BPF_HASH(start,u32);
+
+      BPF_HISTOGRAM(dist,general_t);
+
+      static u64 get_buckets (u64 v) {
+        for(int i = 0;i < NUM_BUCKETS;i++) {
+          if (buckets[i] >= v) {
+            return buckets[i];
+          } 
+        }
+        return buckets[NUM_BUCKETS-1];
+      }
+
+      TRACEPOINT_PROBE(syscalls,sys_enter_connect) {
+        struct sockaddr * uaddr = args->uservaddr;
+        if (uaddr->sa_family == AF_INET || uaddr->sa_family == AF_INET6) {
+          u64 t_pid = bpf_get_current_pid_tgid();
+          u32 pid = t_pid >> 32;
+          u64 t_time = bpf_ktime_get_ns();
+          start.update(&pid,&t_time);
+        }
+        return 0;
+      }
+      TRACEPOINT_PROBE(syscalls,sys_exit_connect) {
+        u64 t_pid =  bpf_get_current_pid_tgid();
+        u32 pid = t_pid >> 32;
+        u64* t_old = start.lookup(&pid);
+        if ( t_old != NULL && args->ret != - EINPROGRESS) {
+          u64 t_now = bpf_ktime_get_ns();
+          u64 dur_us = (t_now - *t_old) / 1000;
+          general_t dist_key = {};
+          dist_key.flag = 0;
+          dist_key.pid = pid;
+          dist_key.bucket = get_buckets(dur_us);
+          dist.increment(dist_key);
+          start.delete(&pid);
+        }
+        return 0;
+      }
+
+      TRACEPOINT_PROBE (syscalls,sys_exit_poll) {
+        u64 p_pid = bpf_get_current_pid_tgid();
+        u32 pid = p_pid >> 32;
+        u64 *t_old = start.lookup(&pid);
+        if (t_old != NULL && args->ret > 0 ) {
+          u64 t_now = bpf_ktime_get_ns();
+          u64 dur_us = (t_now - *t_old) / 1000;
+          general_t key = {};
+          key.flag = 0;
+          key.pid = pid;
+          key.bucket = get_buckets(dur_us);
+          dist.increment(key);
+          start.delete(&pid);
+        }
+        return 0;
+      }
+      TRACEPOINT_PROBE (syscalls,sys_exit_select) {
+        u64 p_pid = bpf_get_current_pid_tgid();
+        u32 pid = p_pid >> 32;
+        u64 *t_old = start.lookup(&pid);
+        if (t_old != NULL && args->ret > 0 ) {
+          u64 t_now = bpf_ktime_get_ns();
+          u64 dur_us = (t_now - *t_old) / 1000;
+          general_t key = {};
+          key.flag = 0;
+          key.pid = pid;
+          key.bucket = get_buckets(dur_us);
+          dist.increment(key);
+          start.delete(&pid);
+        }
+        return 0;
+      }
+  - name: sofamily
+    metrics:
+      counters:
+      - name: sofamily
+        help: the counts of different process that accept & connect had been used
+        table: sofamily_counts
+        labels:
+        - name: process
+          size: 24
+          decoders:
+          - name: uint
+    tracepoints:
+      syscalls:sys_enter_connect: tracepoint__syscalls__sys_enter_connect
+      syscalls:sys_enter_accept4: tracepoint__syscalls__sys_enter_accept4
+      syscalls:sys_exit_accept4: tracepoint__syscalls__sys_exit_accept4
+    code: |
+      #include <linux/socket.h>
+      #include <linux/sched.h>
+      typedef struct general {
+        u64 flag;
+        u64 processID;
+        u64 protocol;
+      } general_t;
+
+      BPF_HASH(accept_tmp,u64,struct sockaddr);
+      BPF_HASH(sofamily_counts,general_t);
+
+      // Generates function 
+      TRACEPOINT_PROBE(syscalls, sys_enter_connect) {
+          u64 p_t = bpf_get_current_pid_tgid();
+          u32 pid = p_t >> 32;
+          general_t connect = {};
+          connect.flag = 0;
+          connect.processID = pid;
+          struct sockaddr* dst = args->uservaddr;
+          u64 proto = (u64)dst->sa_family;
+        
+          connect.protocol = proto;
+          if (sofamily_counts.lookup(&connect) == NULL) {
+            u64 init_val = 0;
+            sofamily_counts.insert(&connect,&init_val);
+          } else {
+            sofamily_counts.increment(connect);
+          }
+          return 0;
+      }
+
+      TRACEPOINT_PROBE (syscalls,sys_enter_accept4) {
+        u64 p_t = bpf_get_current_pid_tgid();
+        u64 pid = p_t >> 32;
+        struct sockaddr dst;
+        bpf_probe_read_kernel(&dst,sizeof(struct sockaddr),args->upeer_sockaddr);
+        accept_tmp.update(&pid,&dst);
+        return 0;
+      }
+
+      TRACEPOINT_PROBE (syscalls,sys_exit_accept4) {
+        u64 p_t = bpf_get_current_pid_tgid();
+        u64 pid = p_t >> 32;
+        struct sockaddr *ret = accept_tmp.lookup(&pid);
+        if ( ret != NULL) {
+          general_t accept = {};
+          accept.flag = 1;
+          accept.processID = pid;
+          accept.protocol = (u64)ret->sa_family;
+          accept_tmp.delete(&pid);
+          
+          if (sofamily_counts.lookup(&accept) == NULL) {
+            u64 init_v = 0;
+            sofamily_counts.insert(&accept,&init_v);
+          } else {
+            if(args->ret > 0) {
+              sofamily_counts.increment(accept);
+            }
+          }
+        }
+        return 0;
+      }        
+  - name: softirqs
+    metrics:
+      histograms:
+      - name: softirqs
+        help: The destribution Of soft interrupts  
+        table: dist
+        bucket_type: exp2
+        bucket_min: 0
+        bucket_max: 16
+        bucket_mutiplier: 1 # usec
+        labels:
+        - name: softirq_type
+          size: 16
+          decoders:
+          - name: uintsoftirq
+    tracepoints:
+      irq:softirq_entry: tracepoint__irq__softirq_entry
+      irq:softirq_exit: tracepoint__irq__softirq_exit            
+    code: |
+      #include <uapi/linux/ptrace.h>
+
+      const u8 bucket_max = 26;
+      typedef struct entry_key {
+        u32 pid;
+        u32 cpu;
+      } entry_key_t;
+
+      typedef struct irq_key {
+        u64 vec;
+        u64 slot;
+      } irq_key_t;
+
+      typedef struct account_val {
+        u64 vec;
+        u64 ts;
+      }account_val_t;
+
+      BPF_HASH(start,entry_key_t,account_val_t);
+      BPF_HASH(iptr, u32);
+      BPF_HISTOGRAM(dist, irq_key_t,bucket_max + 2);
+
+      TRACEPOINT_PROBE(irq, softirq_entry) {
+        account_val_t val = {};
+        entry_key_t key = {};
+        u64 p_pid = bpf_get_current_pid_tgid();
+        key.pid = p_pid >> 32;
+        key.cpu = bpf_get_smp_processor_id();
+        val.ts = bpf_ktime_get_ns();
+        val.vec = args->vec;
+        start.update(&key,&val);
+        return 0;
+      }
+
+      TRACEPOINT_PROBE(irq, softirq_exit) {
+        account_val_t *pval = NULL;
+        entry_key_t key = {};
+        key.pid = bpf_get_current_pid_tgid();
+        key.cpu =  bpf_get_smp_processor_id();
+        pval = start.lookup(&key);
+        if ( pval == NULL ) {
+          return 0;
+        }
+        irq_key_t irq_key = {};
+      
+        u64 delta = (bpf_ktime_get_ns() - pval->ts) / 1000;
+        u64 delta_slot = bpf_log2l(delta);
+      
+        if (delta_slot > bucket_max) {
+          delta_slot = bucket_max;
+        }
+        irq_key.vec = pval->vec;
+        irq_key.slot = delta_slot;
+        dist.increment(irq_key);
+        start.delete(&key);
+        return 0;
+      }
+  - name: soproto
+    metrics:
+      counters:
+      - name: soproto
+        help: the counts of different process in protocol of level-4
+        table: soproto_counts
+        labels:
+        - name: process
+          size: 32
+          decoders:
+          - name: uint
+    kprobes:
+      security_socket_accept: do_counts
+    code: |
+      #include <net/sock.h>
+
+      typedef struct general {
+        u64 flag;
+        u64 pid;
+        u64 proto;
+        u64 pad;
+      } general_t;
+
+      BPF_HASH(soproto_counts,general_t);
+
+      int do_counts (struct pt_regs *ctx, struct sock *sk) {
+        u64 proto = (u64)(sk->sk_protocol & 0xff);
+        general_t accept = {};
+        accept.flag = 0;
+        u64 p_t = bpf_get_current_pid_tgid();
+        u64 pid = p_t >> 32;
+        accept.pid = pid;
+        accept.proto = proto;
+        if(soproto_counts.lookup(&accept) == NULL) {
+          u64 init_v = 0;
+          soproto_counts.insert(&accept,&init_v);
+        } else {
+          soproto_counts.increment(accept);
+        }
+        return 0;
+      }    
