@@ -13,7 +13,7 @@ data:
           help: The Counters Of Process's memory assignment function
           table: memory
           labels:
-          - name: process
+          - name: process_mem
             size: 16
             decoders:
             - name: uintmem
@@ -52,7 +52,7 @@ data:
           help: The Counters Of NetWorking fuctions
           table: counts
           labels:
-          - name: function
+          - name: networking_function
             size: 8
             decoders:
             - name: stringsys
@@ -212,8 +212,8 @@ data:
           labels:
           - decoders:
             - name: uint
-            name: process
-            size: 16
+            name: soconnlat
+            size: 24
           name: connection_latency
           table: dist
       tracepoints:
@@ -231,8 +231,8 @@ data:
         // Define the key used in the latency histogram.
         //define 0 represent soconnlat
         typedef struct general {
-            u32 flag;
-            u32 pid;
+            u64 flag;
+            u64 pid;
             u64 bucket;
         } general_t;
 
@@ -267,7 +267,7 @@ data:
             u64 t_now = bpf_ktime_get_ns();
             u64 dur_us = (t_now - *t_old) / 1000;
             general_t dist_key = {};
-            dist_key.flag = 0;
+            dist_key.flag = 2;
             dist_key.pid = pid;
             dist_key.bucket = get_buckets(dur_us);
             dist.increment(dist_key);
@@ -284,7 +284,7 @@ data:
             u64 t_now = bpf_ktime_get_ns();
             u64 dur_us = (t_now - *t_old) / 1000;
             general_t key = {};
-            key.flag = 0;
+            key.flag = 2;
             key.pid = pid;
             key.bucket = get_buckets(dur_us);
             dist.increment(key);
@@ -300,7 +300,7 @@ data:
             u64 t_now = bpf_ktime_get_ns();
             u64 dur_us = (t_now - *t_old) / 1000;
             general_t key = {};
-            key.flag = 0;
+            key.flag = 2;
             key.pid = pid;
             key.bucket = get_buckets(dur_us);
             dist.increment(key);
@@ -315,7 +315,7 @@ data:
           help: the counts of different process that accept & connect had been used
           table: sofamily_counts
           labels:
-          - name: process
+          - name: process_sofamily
             size: 24
             decoders:
             - name: uint
@@ -469,7 +469,7 @@ data:
           help: the counts of different process in protocol of level-4
           table: soproto_counts
           labels:
-          - name: process
+          - name: process_soproto
             size: 32
             decoders:
             - name: uint

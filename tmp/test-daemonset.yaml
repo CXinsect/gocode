@@ -15,10 +15,10 @@ spec:
     spec:
       containers:
       - name: test
-        image: cxinsect/prom:v0.0.0
+        image: cxinsect/prom:v0.0.1
         imagePullPolicy: IfNotPresent
         command: ["/bin/bash"]
-        args: ["-c","./prom_exporter --config.file /etc/config/prom-exporter.yaml"]
+        args: ["-c","./prom_exporter --config.file /etc/config/prom-exporter.yaml --label-ip $HOSTIP"]
         securityContext:
           privileged: true
         ports:
@@ -34,6 +34,11 @@ spec:
           name: modules
         - mountPath: /usr/src/kernels
           name: users
+        env:
+        - name: HOSTIP
+          valueFrom: 
+            fieldRef:
+              fieldPath: status.hostIP
       restartPolicy: Always
       volumes:
         - configMap:

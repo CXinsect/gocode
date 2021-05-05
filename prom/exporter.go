@@ -3,6 +3,7 @@ package prom
 import (
 	"fmt"
 	"log"
+	"os"
 	"strconv"
 	"strings"
 
@@ -26,17 +27,25 @@ type Exporter struct {
 	decoder            *decoder.Set
 }
 
+func getHostIP() (string, error) {
+	if hostIP := os.Getenv("HOSTIP"); hostIP != "" {
+		return hostIP, nil
+	} else {
+		return "", fmt.Errorf("field to obtain hostip")
+	}
+}
 func New(config config.Config) *Exporter {
+
 	enabledProgramDesc := prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "enabled_programs"),
 		"enabledProgramDesc",
-		[]string{"name"},
+		[]string{"name", "hostIP"},
 		nil,
 	)
 	programInfoDesc := prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "programInfo"),
 		"programInfoDesc",
-		[]string{"function"},
+		[]string{"function", "hostIP"},
 		nil,
 	)
 	return &Exporter{
@@ -92,6 +101,8 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 			for _, v := range label {
 				labelName = append(labelName, v.Name)
 			}
+			labelName = append(labelName, "hostIP")
+
 			e.descs[programName][name] = prometheus.NewDesc(prometheus.BuildFQName(namespace, "", name),
 				help,
 				labelName,
@@ -117,8 +128,9 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
+	hostIP, _ := getHostIP()
 	for _, programa := range e.config.Programs {
-		ch <- prometheus.MustNewConstMetric(e.enabledProgramDesc, prometheus.GaugeValue, 1, programa.Name)
+		ch <- prometheus.MustNewConstMetric(e.enabledProgramDesc, prometheus.GaugeValue, 1, programa.Name, hostIP)
 	}
 	// for _, tagMap := range e.programTags {
 	// 	for function, _ := range tagMap {
@@ -139,7 +151,9 @@ func (e *Exporter) collectCounter(ch chan<- prometheus.Metric) {
 				continue
 			}
 			desc := e.descs[program.Name][counter.Name]
+			hostIP, _ := getHostIP()
 			for _, mv := range mvs {
+				mv.labels = append(mv.labels, hostIP)
 				ch <- prometheus.MustNewConstMetric(desc, prometheus.CounterValue, mv.value, mv.labels...)
 			}
 		}
@@ -168,6 +182,8 @@ func (e *Exporter) collectHistogram(ch chan<- prometheus.Metric) {
 				}
 				labels = append(labels, e_label)
 				key := labels[0]
+				hostIP, _ := getHostIP()
+				labels = append(labels, hostIP)
 				if _, ok := histograms[key]; !ok {
 					histograms[key] = histogramWithLabels{
 						labels:  labels,
@@ -212,8 +228,8 @@ func (e *Exporter) tableKeyAndValues(module *bcc.Module, tableName string, label
 	if iter != nil {
 		for iter.Next() {
 			key := iter.Key()
-			raw, _ := table.KeyBytesToStr(key)
-			fmt.Println("The content of key: ", raw)
+			// raw, _ := table.KeyBytesToStr(key)
+			// fmt.Println("The content of key: ", raw)
 			mv := metricValue{
 				labels: make([]string, len(labels)),
 			}
