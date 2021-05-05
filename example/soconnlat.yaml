@@ -22,7 +22,7 @@ programs:
             - decoders:
                 - name: uint
               name: process
-              size: 16
+              size: 24
           name: connection_latency
           table: dist
     tracepoints:
@@ -42,8 +42,8 @@ programs:
       // Define the key used in the latency histogram.
       //define 0 represent soconnlat
       typedef struct general {
-          u32 flag;
-          u32 pid;
+          u64 flag;
+          u64 pid;
           u64 bucket;
       } general_t;
 
@@ -78,7 +78,7 @@ programs:
           u64 t_now = bpf_ktime_get_ns();
           u64 dur_us = (t_now - *t_old) / 1000;
           general_t dist_key = {};
-          dist_key.flag = 0;
+          dist_key.flag = 2;
           dist_key.pid = pid;
           dist_key.bucket = get_buckets(dur_us);
           dist.increment(dist_key);
@@ -95,7 +95,7 @@ programs:
           u64 t_now = bpf_ktime_get_ns();
           u64 dur_us = (t_now - *t_old) / 1000;
           general_t key = {};
-          key.flag = 0;
+          key.flag = 2;
           key.pid = pid;
           key.bucket = get_buckets(dur_us);
           dist.increment(key);
@@ -111,7 +111,7 @@ programs:
           u64 t_now = bpf_ktime_get_ns();
           u64 dur_us = (t_now - *t_old) / 1000;
           general_t key = {};
-          key.flag = 0;
+          key.flag = 2;
           key.pid = pid;
           key.bucket = get_buckets(dur_us);
           dist.increment(key);

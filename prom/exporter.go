@@ -120,11 +120,11 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	for _, programa := range e.config.Programs {
 		ch <- prometheus.MustNewConstMetric(e.enabledProgramDesc, prometheus.GaugeValue, 1, programa.Name)
 	}
-	for _, tagMap := range e.programTags {
-		for function, _ := range tagMap {
-			ch <- prometheus.MustNewConstMetric(e.programInfoDesc, prometheus.GaugeValue, 1, function)
-		}
-	}
+	// for _, tagMap := range e.programTags {
+	// 	for function, _ := range tagMap {
+	// 		ch <- prometheus.MustNewConstMetric(e.programInfoDesc, prometheus.GaugeValue, 1, function+)
+	// 	}
+	// }
 	//TODO收集
 	e.collectCounter(ch)
 	e.collectHistogram(ch)

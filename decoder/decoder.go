@@ -19,6 +19,12 @@ type Set struct {
 	decoders map[string]Decoder
 }
 
+const (
+	FunctionConnect = 0
+	FunctionAccept  = 1
+	ProgramSoFamily = 3
+)
+
 func NewSet() *Set {
 	return &Set{
 		decoders: map[string]Decoder{

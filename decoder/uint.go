@@ -73,10 +73,17 @@ func generateLabelsOfKey_32(flag, pid, proto uint64) ([]byte, error) {
 func generateLabelsOfKey_24(flag, pid, proto uint64) ([]byte, error) {
 	var ret string
 	pid_name := getPidName(pid, proto)
-	if flag == 0 {
+
+	switch flag {
+	case 0:
 		ret = "connect:" + string(pid_name) + ":" + netProtoMap(proto)
-	} else {
+	case 1:
 		ret = "accept:" + string(pid_name) + ":" + netProtoMap(proto)
+	case 2:
+		//for soconnlat defining target
+		ret = "connect_" + string(pid_name) + ":" + strconv.Itoa(int(proto))
+	default:
+		return nil, fmt.Errorf("unknown type")
 	}
 	return []byte(ret), nil
 }
