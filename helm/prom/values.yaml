@@ -1,11 +1,12 @@
 image:
   repository: cxinsect/prom
-  tag: v0.0.0
+  tag: v0.0.1
   pullPolicy: IfNotPresent
 
 service:
   type: NodePort
   port: 8888
+  nodePort: 31858
 
 resources:
   limits:

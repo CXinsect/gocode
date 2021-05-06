@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata: 
   name: test-daemonset
-  namespace: default
+  namespace: prom
 spec:
   replicas: 1
   selector:

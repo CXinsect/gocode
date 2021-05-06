@@ -17,7 +17,7 @@ spec:
         image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         command: ["/bin/bash","-c"]
-        args: ["--config.file","/etc/config/prom-exporter.yaml"]
+        args: ["-c","./prom_exporter --config.file /etc/config/prom-exporter.yaml --label-ip $HOSTIP"]
         securityContext:
           privileged: true
         ports:
@@ -31,11 +31,18 @@ spec:
           name: kernel
         - mountPath: /lib/modules/
           name: modules
+        - mountPath: /usr/src/kernels
+          name: users
+        env:
+        - name: HOSTIP
+          valueFrom: 
+            fieldRef:
+              fieldPath: status.hostIP
       restartPolicy: Always
       volumes:
         - configMap:
             defaultMode: 420
-            name: prom-exporter
+            name: {{ .Release.Name }}-configmap
           name: {{ .Release.Name }}-configmap
         - hostPath:
             path: /sys/kernel/debug
@@ -45,5 +52,9 @@ spec:
             path: /lib/modules
             type: Directory
           name: modules
+        - hostPath:
+            path: /usr/src/kernels
+            type: Directory
+          name: users
 
       
