@@ -6,7 +6,8 @@ COPY ./ /home/go/exporter
 
 EXPOSE 8888
 
-RUN cd /home/go/exporter/ && GOPROXY="https://goproxy.cn,direct" 
+RUN cd /home/go/exporter/
+    
 
 WORKDIR /home/go/exporter/
 

@@ -1,5 +1,5 @@
 .PHONY: image
-PROG_TAG := (shell git rev-parse HEAD)
+PROG_TAG := $(shell git rev-parse HEAD)
 BASE_TAG ?= v0.0.0
 image: 
 	docker build -t cxinsect/prom:$(PROG_TAG) -f Dockerfile .
