@@ -17,6 +17,7 @@ type Program struct {
 	Metrics     Metrics           `yaml:"metrics"`
 	Kprobes     map[string]string `yaml:"kprobes"`
 	Kretprobes  map[string]string `yaml:"kretprobes"`
+	Uprobes     map[string]string `yaml:"uprobes"`
 	Tracepoints map[string]string `yaml:"tracepoints"`
 	PerfEvents  []PerfEvent       `yaml:"perf_events"`
 	Code        string            `yaml:"code"`

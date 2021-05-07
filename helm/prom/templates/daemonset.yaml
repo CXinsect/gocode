@@ -17,7 +17,7 @@ spec:
         image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         command: ["/bin/bash","-c"]
-        args: ["-c","./prom_exporter --config.file /etc/config/prom-exporter.yaml --label-ip $HOSTIP"]
+        args: ["go build -o prom_exporter cmd/main.go && go build -o tmp/oom tmp/oom.go && ./prom_exporter --config.file /etc/config/prom-exporter.yaml --label-ip $HOSTIP"]
         securityContext:
           privileged: true
         ports:

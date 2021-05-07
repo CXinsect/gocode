@@ -16,7 +16,7 @@ programs:
             - 100
           bucket_min: 0
           bucket_max: 10
-          bucket_multiplier: 1e-03
+          bucket_multiplier: 1
           help: Latency of Connection
           labels:
             - decoders:

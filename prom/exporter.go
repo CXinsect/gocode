@@ -69,7 +69,7 @@ func (e *Exporter) Attach() error {
 			return fmt.Errorf("create module failed with program name %s", program.Name)
 		}
 		//进行映射的逻辑
-		tags, err := attach(module, program.Kprobes, program.Tracepoints)
+		tags, err := attach(module, program.Kprobes, program.Tracepoints, program.Uprobes)
 		if err != nil {
 			return fmt.Errorf("program %s attch failed %s", program.Name, err)
 		}
@@ -228,8 +228,8 @@ func (e *Exporter) tableKeyAndValues(module *bcc.Module, tableName string, label
 	if iter != nil {
 		for iter.Next() {
 			key := iter.Key()
-			// raw, _ := table.KeyBytesToStr(key)
-			// fmt.Println("The content of key: ", raw)
+			raw, _ := table.KeyBytesToStr(key)
+			fmt.Println("The content of key: ", raw)
 			mv := metricValue{
 				labels: make([]string, len(labels)),
 			}

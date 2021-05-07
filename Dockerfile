@@ -6,7 +6,7 @@ COPY ./ /home/go/exporter
 
 EXPOSE 8888
 
-RUN cd /home/go/exporter/ && GOPROXY="https://goproxy.cn,direct" go build -o prom_exporter cmd/main.go
+RUN cd /home/go/exporter/ && GOPROXY="https://goproxy.cn,direct" 
 
 WORKDIR /home/go/exporter/
 
