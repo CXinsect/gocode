@@ -228,8 +228,8 @@ func (e *Exporter) tableKeyAndValues(module *bcc.Module, tableName string, label
 	if iter != nil {
 		for iter.Next() {
 			key := iter.Key()
-			raw, _ := table.KeyBytesToStr(key)
-			fmt.Println("The content of key: ", raw)
+			// raw, _ := table.KeyBytesToStr(key)
+			// fmt.Println("The content of key: ", raw)
 			mv := metricValue{
 				labels: make([]string, len(labels)),
 			}

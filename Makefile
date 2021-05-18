@@ -5,7 +5,7 @@ image:
 	docker build -t cxinsect/prom:$(PROG_TAG) -f Dockerfile .
 	docker push cxinsect/prom:$(PROG_TAG)
 clean: 
-	docker rmi -f cxinsect/prom:$(PROG_TAG)
+	docker rmi $(docker images | grep -e '^<' | awk '{ print $3 }')
 
 image_base:
 	docker build -t cxinsect/gorilla:$(BASE_TAG) -f Dockerfile_base .

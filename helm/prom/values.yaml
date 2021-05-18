@@ -1,6 +1,6 @@
 image:
   repository: cxinsect/prom
-  tag: 18afc02b89f3ff020a4b0cc9aedbb73d606d00a9
+  tag: 9baf3988b54eee73e4c9767a37856ef06cb885c7
   pullPolicy: IfNotPresent
 
 service:
